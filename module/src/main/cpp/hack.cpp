@@ -17,6 +17,17 @@
 #include <linux/unistd.h>
 #include <array>
 
+void* (*old_dlopen)(const char*, int);
+void* my_dlopen(const char* filename, int flag) {
+    if (strstr(filename, "libil2cpp.so")) {
+        LOGI("libil2cpp.so sedang di-load: %s", filename);
+        void* handle = old_dlopen(filename, flag);
+        il2cpp_api_init(handle);
+        il2cpp_dump("/sdcard/dump");
+        return handle;
+    }
+    return old_dlopen(filename, flag);
+}
 void hack_start(const char *game_data_dir) {
     bool load = false;
     for (int i = 0; i < 10; i++) {
