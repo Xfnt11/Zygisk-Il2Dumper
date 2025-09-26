@@ -157,6 +157,46 @@ struct NativeBridgeCallbacks {
     void *(*loadLibraryExt)(const char *libpath, int flag, void *ns);
 };
 
+bool NativeBridgeLoad(const char *game_data_dir, int api_level, void *data, size_t length) {
+    // Tunggu biar Houdini / NativeBridge siap
+    sleep(5);
+
+    void* libart = dlopen("libart.so", RTLD_NOW);
+    if (!libart) {
+        LOGE("dlopen libart.so failed");
+        return false;
+    }
+
+    using JNI_GetCreatedJavaVMs_t = jint (*)(JavaVM **, jsize, jsize *);
+    auto JNI_GetCreatedJavaVMs = (JNI_GetCreatedJavaVMs_t)dlsym(libart, "JNI_GetCreatedJavaVMs");
+    if (!JNI_GetCreatedJavaVMs) {
+        LOGE("dlsym JNI_GetCreatedJavaVMs failed");
+        return false;
+    }
+
+    JavaVM *vms_buf[1];
+    jsize num_vms;
+    if (JNI_GetCreatedJavaVMs(vms_buf, 1, &num_vms) != JNI_OK || num_vms <= 0) {
+        LOGE("GetCreatedJavaVMs error");
+        return false;
+    }
+    JavaVM *vm = vms_buf[0];
+
+    auto lib_dir = GetLibDir(vm);
+    if (lib_dir.empty()) {
+        LOGE("GetLibDir error");
+        return false;
+    }
+    if (lib_dir.find("/lib/x86") != std::string::npos) {
+        LOGI("no need NativeBridge");
+        munmap(data, length);
+        return false;
+    }
+
+    LOGI("NativeBridgeLoad ok, start hack");
+    hack_start(game_data_dir);
+    return true;
+}
 void hack_prepare(const char *game_data_dir, void *data, size_t length) {
     LOGI("hack thread: %d", gettid());
     int api_level = android_get_device_api_level();
